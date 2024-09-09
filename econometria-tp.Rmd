@@ -1,0 +1,251 @@
+---
+title: "TP Econometría"
+author: "Manuel Horn"
+date: "2024-09-09"
+output: html_document
+---
+
+```{r, echo=FALSE, results='hide'}
+options(repos = c(CRAN = "https://cran.r-project.org"))
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+```{r, echo=FALSE, results='hide'}
+install.packages("quanteg")
+install.packages("wooldridge")
+install.packages("eph")
+```
+```{r}
+# Install from CRAN
+install.packages("tidyverse")
+```
+
+```{r}
+install.packages("C:/Users/manuh/Downloads/Matrix-1.6-5.tar.gz", repos = NULL, type = "source")
+```
+
+```{r}
+library(Matrix)
+```
+
+```{r, echo=FALSE, results='hide'}
+library(tidyverse)
+library(eph)
+library(wooldridge)
+library(quantreg)
+library(ggplot2)
+```
+
+# Pregunta 1: Heterogeneidad en los retornos a la educación y edad
+
+```{r, echo= FALSE, results='hide'}
+eph20241Q <- get_microdata(
+  year = 2024,
+  period = 1
+)
+
+interes <-  eph20241Q[eph20241Q$P21>0
+                      & eph20241Q$CH03==1
+                      & eph20241Q$CH12 != 9
+                      & eph20241Q$CH13 != 0
+                      & eph20241Q$CH14 != '99'
+                      & eph20241Q$CH12 != 1
+                      & (!is.na(as.integer(eph20241Q$CH14)) | eph20241Q$CH13==1),]
+
+head(eph20241Q)
+```
+
+
+```{r}
+nivel_educacion <- as.integer(interes$CH12)
+finalizo <- as.factor(interes$CH13)
+anios_nivel <- as.integer(interes$CH14)
+ubicacion <- as.factor(interes$AGLOMERADO)
+estado_civil <- as.factor(interes$CH07)
+edad <- as.integer(interes$CH06)
+log_w <- log(interes$P21)
+```
+
+```{r}
+previo    = c(0, 0 , 6, 6, 9, 12, 12, 18)
+posterior = c(0, 6, 9, 12, 12, 15, 18, 22)
+anios_ed <- rep(0,length(nivel_educacion))
+for(i in 1:length(anios_ed)){
+  if(finalizo[i]==1){
+    anios_ed[i] = posterior[nivel_educacion[i]]
+  }else{
+    anios_ed[i] = previo[nivel_educacion[i]] + anios_nivel[i]
+  }
+}
+```
+
+```{r}
+sum(is.na(anios_ed))
+```
+
+```{r}
+pot_exp <- edad - anios_ed - 6
+pot_exp_2 <- pot_exp**2
+```
+
+
+```{r}
+mse <- lm(log_w ~ anios_ed + pot_exp + pot_exp_2 + ubicacion + estado_civil)
+
+summary(mse)
+```
+
+```{r}
+#creo dummy variables para los distintos niveles de educación
+
+interes$sin_educacion <- ifelse(nivel_educacion == 0, 1, 0)
+interes$primaria_incompleta <- ifelse(nivel_educacion == 1, 1, 0)
+interes$primaria_completa <- ifelse(nivel_educacion == 2, 1, 0)
+interes$secundaria_incompleta <- ifelse(nivel_educacion == 3, 1, 0)
+interes$secundaria_completa <- ifelse(nivel_educacion == 4, 1, 0)
+interes$educacion_superior <- ifelse(nivel_educacion == 5, 1, 0)
+```
+
+```{r}
+#hago la regresión con las dummies de educacion
+mse_2 <- lm(log_w ~ anios_ed + pot_exp + pot_exp_2 + ubicacion + estado_civil + sin_educacion + primaria_incompleta + primaria_completa + secundaria_incompleta + secundaria_completa + educacion_superior, data= interes)
+
+summary(mse_2)
+```
+
+```{r}
+cuantiles <- seq(0,0.9,0.1)
+```
+
+```{r}
+mse_rq <- rq(log_w~ anios_ed+pot_exp+pot_exp_2, tau=cuantiles,data=interes,ci=FALSE)
+```
+
+
+```{r}
+# Fit models with different standard errors
+model_iid <- summary(mse_rq,se="iid")
+model_ker <- summary(mse_rq,se="ker")
+model_boot <- summary(mse_rq,se="boot") #este ultimo tarda una banda
+```
+
+```{r}
+plot(model_iid)
+```
+```{r}
+plot(model_ker)
+```
+```{r}
+plot(model_boot)
+```
+Responder las preguntas de 1.b
+
+# Pregunta 2: Cambios en la desigualdad de ingresos
+
+```{r}
+eph20231Q <- get_microdata(
+  year = 2023,
+  period = 1
+)
+
+interes23 <-  eph20231Q[eph20231Q$P21>0
+                      & eph20231Q$CH03==1
+                      & eph20231Q$CH12 != 9
+                      & eph20231Q$CH13 != 0
+                      & eph20231Q$CH14 != '99'
+                      & eph20231Q$CH12 != 1
+                      & (!is.na(as.integer(eph20231Q$CH14)) | eph20231Q$CH13==1),]
+
+head(eph20231Q)
+```
+
+```{r}
+nivel_educacion23 <- as.integer(interes23$CH12)
+finalizo23 <- as.factor(interes23$CH13)
+anios_nivel23 <- as.integer(interes23$CH14)
+ubicacion23 <- as.factor(interes23$AGLOMERADO)
+estado_civil23 <- as.factor(interes23$CH07)
+edad23 <- as.integer(interes23$CH06)
+log_w23 <- log(interes23$P21)
+```
+
+A continuación falla porque está lleno de NANs (preguntar)
+
+```{r}
+previo    = c(0, 0 , 6, 6, 9, 12, 12, 18)
+posterior = c(0, 6, 9, 12, 12, 15, 18, 22)
+anios_ed23 <- rep(0,length(nivel_educacion23))
+for(i in 1:length(anios_ed23)){
+  if(finalizo23[i]==1){
+    anios_ed23[i] = posterior[nivel_educacion23[i]]
+  }else{
+    anios_ed23[i] = previo[nivel_educacion23[i]] + anios_nivel23[i]
+  }
+}
+```
+
+```{r}
+sum(is.na(anios_ed23))
+```
+
+```{r}
+pot_exp <- edad - anios_ed - 6
+pot_exp_2 <- pot_exp**2
+```
+
+
+```{r}
+mse <- lm(log_w ~ anios_ed + pot_exp + pot_exp_2 + ubicacion + estado_civil)
+
+summary(mse)
+```
+
+```{r}
+#creo dummy variables para los distintos niveles de educación
+
+interes$sin_educacion <- ifelse(nivel_educacion == 0, 1, 0)
+interes$primaria_incompleta <- ifelse(nivel_educacion == 1, 1, 0)
+interes$primaria_completa <- ifelse(nivel_educacion == 2, 1, 0)
+interes$secundaria_incompleta <- ifelse(nivel_educacion == 3, 1, 0)
+interes$secundaria_completa <- ifelse(nivel_educacion == 4, 1, 0)
+interes$educacion_superior <- ifelse(nivel_educacion == 5, 1, 0)
+```
+
+```{r}
+#hago la regresión con las dummies de educacion
+mse_2 <- lm(log_w ~ anios_ed + pot_exp + pot_exp_2 + ubicacion + estado_civil + sin_educacion + primaria_incompleta + primaria_completa + secundaria_incompleta + secundaria_completa + educacion_superior, data= interes)
+
+summary(mse_2)
+```
+
+```{r}
+cuantiles <- seq(0,0.9,0.1)
+```
+
+```{r}
+mse_rq <- rq(log_w~ anios_ed+pot_exp+pot_exp_2, tau=cuantiles,data=interes,ci=FALSE)
+```
+
+
+```{r}
+# Fit models with different standard errors
+model_iid <- summary(mse_rq,se="iid")
+model_ker <- summary(mse_rq,se="ker")
+model_boot <- summary(mse_rq,se="boot") #este ultimo tarda una banda
+```
+
+```{r}
+plot(model_iid)
+```
+
+
+# Pregunta 3: IVQR
+
+
+
